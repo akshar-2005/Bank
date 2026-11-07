@@ -113,3 +113,19 @@ POST /api/transfers
 ## EMI formula
 
 `EMI = P x r x (1 + r)^n / ((1 + r)^n - 1)` where P is the loan amount, r is the monthly interest rate and n is the number of months.
+
+## Frontend
+
+A SvelteKit and Tailwind CSS web app in the `frontend` folder that uses the REST API above.
+
+Screens: register, login, dashboard with account cards, account page (deposit, withdraw, transfer, paginated transaction history), customer loans page, and an admin page to approve or reject loans. The JWT is kept in the browser and sent with every request.
+
+Run it (the backend must be running on port 8080):
+
+```
+cd frontend
+npm install
+npm run dev
+```
+
+Then open http://localhost:5173. The backend allows this origin through a CORS setting in `SecurityConfig`.

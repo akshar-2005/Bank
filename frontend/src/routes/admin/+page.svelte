@@ -2,6 +2,11 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { api, getUser, clearSession } from '#lib/api.js';
+  import Sidebar from '#lib/components/Sidebar.svelte';
+  import StatusBadge from '#lib/components/StatusBadge.svelte';
+  import Spinner from '#lib/components/Spinner.svelte';
+  import EmptyState from '#lib/components/EmptyState.svelte';
+  import Alert from '#lib/components/Alert.svelte';
 
   /** @type {any[]} */
   let loans = $state([]);
@@ -10,6 +15,9 @@
   let message = $state('');
   /** @type {number | null} */
   let busyId = $state(null);
+
+  /** @type {{ email: string, role: string } | null} */
+  let user = $state(null);
 
   /** @param {number | string} value */
   function money(value) {
@@ -60,7 +68,7 @@
   }
 
   onMount(() => {
-    const user = getUser();
+    user = getUser();
     if (!user) {
       goto('/login');
       return;
@@ -73,68 +81,134 @@
   });
 </script>
 
-<div class="min-h-screen bg-slate-100">
-  <header class="bg-white shadow-sm">
-    <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-      <h1 class="text-xl font-bold text-blue-700">My Bank · Admin</h1>
-      <div class="flex items-center gap-4">
-        <a href="/dashboard" class="text-sm text-blue-600 hover:underline">Dashboard</a>
-        <button
-          onclick={logout}
-          class="px-3 py-1.5 rounded-lg bg-gray-800 text-white text-sm hover:bg-gray-900"
-        >
-          Log out
-        </button>
+<Sidebar {user} active="admin" onlogout={logout}>
+  <div class="space-y-8">
+    <!-- Header Line -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/80">
+      <div>
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-2.5 h-2.5 rounded-full bg-purple-600 animate-pulse"></span>
+          <span class="text-xs uppercase font-bold tracking-widest text-purple-700">Administrative Portal</span>
+        </div>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900">
+          Pending Loan Applications
+        </h1>
+        <p class="mt-1 text-sm text-slate-500">
+          Review borrower verification, calculate risk, and execute loan approval or rejection decisions.
+        </p>
       </div>
-    </div>
-  </header>
 
-  <main class="max-w-4xl mx-auto px-6 py-8 space-y-4">
-    <h2 class="text-lg font-semibold text-gray-800">Pending loan applications</h2>
+      {#if !loading && loans.length > 0}
+        <span class="text-xs font-semibold px-3 py-1.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 self-start sm:self-auto">
+          {loans.length} Pending Decision{loans.length === 1 ? '' : 's'}
+        </span>
+      {/if}
+    </div>
 
     {#if error}
-      <p class="rounded bg-red-100 text-red-700 px-3 py-2 text-sm">{error}</p>
+      <div class="mb-4">
+        <Alert type="error" message={error} />
+      </div>
     {/if}
     {#if message}
-      <p class="rounded bg-green-100 text-green-700 px-3 py-2 text-sm">{message}</p>
+      <div class="mb-4">
+        <Alert type="success" message={message} />
+      </div>
     {/if}
 
     {#if loading}
-      <p class="text-gray-500">Loading...</p>
+      <div class="space-y-4">
+        <div class="h-44 rounded-2xl bg-slate-200/80 animate-pulse"></div>
+        <div class="h-44 rounded-2xl bg-slate-200/80 animate-pulse"></div>
+      </div>
     {:else if loans.length === 0}
-      <p class="text-gray-500">No pending applications.</p>
+      <EmptyState
+        icon="admin"
+        title="No pending applications"
+        description="All loan applications submitted by customers have been reviewed and processed."
+      />
     {:else}
       <div class="space-y-4">
         {#each loans as loan (loan.id)}
-          <div class="bg-white rounded-xl shadow-md p-5 flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p class="text-sm text-gray-500">Loan #{loan.id} · {loan.applicantEmail}</p>
-              <p class="text-2xl font-bold text-blue-700">{money(loan.principal)}</p>
-              <p class="text-sm text-gray-600">
-                {loan.annualInterestRate}% for {loan.tenureMonths} months · EMI {money(loan.emi)}
+          <div class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-6 sm:p-7 flex flex-col lg:flex-row lg:items-center justify-between gap-6 hover:shadow-md transition-shadow">
+            <div class="space-y-3 min-w-0 flex-1">
+              <!-- Header Meta: Loan ID, Email, Status -->
+              <div class="flex flex-wrap items-center gap-2.5">
+                <span class="font-mono text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                  #{loan.id}
+                </span>
+                <span class="text-xs font-semibold text-slate-700 truncate" title={loan.applicantEmail}>
+                  {loan.applicantEmail}
+                </span>
+                <StatusBadge status="PENDING" />
+              </div>
+
+              <!-- Principal Amount -->
+              <div>
+                <span class="text-[10px] uppercase font-bold tracking-widest text-slate-400 block">Requested Amount</span>
+                <p class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mt-0.5">
+                  {money(loan.principal)}
+                </p>
+              </div>
+
+              <!-- Term Details & EMI -->
+              <div class="p-3 rounded-xl bg-slate-50 border border-slate-200/70 grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                <div>
+                  <span class="text-slate-400 block">Interest Rate & Tenure</span>
+                  <span class="font-semibold text-slate-800">{loan.annualInterestRate}% APR · {loan.tenureMonths} Mo</span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Monthly Installment</span>
+                  <span class="font-bold text-teal-800">{money(loan.emi)} / mo</span>
+                </div>
+                <div>
+                  <span class="text-slate-400 block">Disbursement Account</span>
+                  <span class="font-mono font-semibold text-slate-800">{loan.accountNumber}</span>
+                </div>
+              </div>
+
+              <p class="text-[11px] text-slate-400">
+                Submitted on {formatDate(loan.createdAt)}
               </p>
-              <p class="text-xs text-gray-500 font-mono">Account {loan.accountNumber}</p>
-              <p class="text-xs text-gray-500">Applied {formatDate(loan.createdAt)}</p>
             </div>
-            <div class="flex gap-2">
+
+            <!-- Action Buttons -->
+            <div class="flex sm:flex-row lg:flex-col gap-2.5 shrink-0 pt-4 lg:pt-0 border-t lg:border-t-0 border-slate-100">
               <button
                 onclick={() => decide(loan.id, 'approve')}
                 disabled={busyId === loan.id}
-                class="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                class="flex-1 lg:w-36 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-sm hover:shadow transition-all disabled:opacity-50 cursor-pointer"
               >
-                Approve
+                {#if busyId === loan.id}
+                  <Spinner size="xs" class="text-white" />
+                  <span>Processing...</span>
+                {:else}
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Approve</span>
+                {/if}
               </button>
+
               <button
                 onclick={() => decide(loan.id, 'reject')}
                 disabled={busyId === loan.id}
-                class="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                class="flex-1 lg:w-36 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs shadow-sm hover:shadow transition-all disabled:opacity-50 cursor-pointer"
               >
-                Reject
+                {#if busyId === loan.id}
+                  <Spinner size="xs" class="text-white" />
+                  <span>Processing...</span>
+                {:else}
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  <span>Reject</span>
+                {/if}
               </button>
             </div>
           </div>
         {/each}
       </div>
     {/if}
-  </main>
-</div>
+  </div>
+</Sidebar>
